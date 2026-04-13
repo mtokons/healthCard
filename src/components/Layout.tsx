@@ -2,10 +2,17 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export function Layout() {
-  const { member, logout } = useAuth()
+  const { member, logout, supabaseConfigured } = useAuth()
 
   return (
     <div className="layout">
+      {!supabaseConfigured && (
+        <div className="config-banner" role="status">
+          <strong>ডাটাবেস সংযোগ সেট করা নেই।</strong> GitHub Actions-এ{' '}
+          <code>VITE_SUPABASE_URL</code> ও <code>VITE_SUPABASE_ANON_KEY</code> সিক্রেট যোগ করুন, তারপর আবার
+          ডিপ্লয় করুন। স্থানীয়ভাবে <code>.env.local</code> ব্যবহার করুন।
+        </div>
+      )}
       <header className="header">
         <div className="header__inner">
           <Link to="/" className="header__logo">

@@ -8,9 +8,11 @@ import { CardPage } from './pages/CardPage'
 import { ServicesPage } from './pages/ServicesPage'
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />

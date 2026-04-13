@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Member } from '../types'
 import { generateCardNumber } from '../lib/storage'
-import { supabase } from '../lib/supabase'
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase'
 import { AuthContext } from './auth-context'
 
 type AuthState = {
@@ -9,7 +10,10 @@ type AuthState = {
   loading: boolean
 }
 
-const emptyState: AuthState = { member: null, loading: true }
+const initialLoadingState = (): AuthState => ({
+  member: null,
+  loading: isSupabaseConfigured(),
+})
 
 function toBanglaError(message: string) {
   const m = message.toLowerCase()
@@ -19,20 +23,24 @@ function toBanglaError(message: string) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [{ member, loading }, setState] = useState<AuthState>(emptyState)
+  const supabaseConfigured = isSupabaseConfigured()
+  const [{ member, loading }, setState] = useState<AuthState>(initialLoadingState)
 
   useEffect(() => {
+    const client = getSupabaseClient()
+    if (!client) return
+
     let cancelled = false
 
-    async function load() {
-      const { data } = await supabase.auth.getSession()
+    async function load(sb: SupabaseClient) {
+      const { data } = await sb.auth.getSession()
       const user = data.session?.user ?? null
       if (!user) {
         if (!cancelled) setState({ member: null, loading: false })
         return
       }
 
-      const { data: profile, error } = await supabase
+      const { data: profile, error } = await sb
         .from('profiles')
         .select('id,email,full_name,card_number,member_since')
         .eq('id', user.id)
@@ -54,16 +62,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!cancelled) setState({ member: nextMember, loading: false })
     }
 
-    load()
+    void load(client)
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
       const user = session?.user ?? null
       if (!user) {
         setState({ member: null, loading: false })
         return
       }
       void (async () => {
-        const { data: profile } = await supabase
+        const client = getSupabaseClient()
+        if (!client) {
+          setState({ member: null, loading: false })
+          return
+        }
+        const { data: profile } = await client
           .from('profiles')
           .select('id,email,full_name,card_number,member_since')
           .eq('id', user.id)
@@ -95,6 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback((fullName: string, email: string, password: string) => {
     return (async () => {
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        return { ok: false as const, error: 'সার্ভার কনফিগারেশন সম্পূর্ণ নয়।' }
+      }
       if (!fullName.trim() || !email.trim() || !password) {
         return { ok: false as const, error: 'সব ঘর পূরণ করুন।' }
       }
@@ -132,6 +149,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback((email: string, password: string) => {
     return (async () => {
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        return { ok: false as const, error: 'সার্ভার কনফিগারেশন সম্পূর্ণ নয়।' }
+      }
       if (!email.trim() || !password) return { ok: false as const, error: 'সব ঘর পূরণ করুন।' }
       setState((s) => ({ ...s, loading: true }))
       const { error } = await supabase.auth.signInWithPassword({
@@ -149,14 +170,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     return (async () => {
-      await supabase.auth.signOut()
+      const supabase = getSupabaseClient()
+      if (supabase) await supabase.auth.signOut()
       setState({ member: null, loading: false })
     })()
   }, [])
 
   const value = useMemo(
-    () => ({ member, loading, register, login, logout }),
-    [member, loading, register, login, logout]
+    () => ({ member, loading, supabaseConfigured, register, login, logout }),
+    [member, loading, supabaseConfigured, register, login, logout]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
