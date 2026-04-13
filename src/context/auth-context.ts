@@ -1,15 +1,12 @@
 import { createContext } from 'react'
 import type { Member } from '../types'
-import { loginMember, registerMember } from '../lib/storage'
+
+export type AuthResult = { ok: true } | { ok: false; error: string }
 
 export const AuthContext = createContext<{
   member: Member | null
   loading: boolean
-  register: (
-    fullName: string,
-    email: string,
-    password: string
-  ) => ReturnType<typeof registerMember>
-  login: (email: string, password: string) => ReturnType<typeof loginMember>
-  logout: () => void
+  register: (fullName: string, email: string, password: string) => Promise<AuthResult>
+  login: (email: string, password: string) => Promise<AuthResult>
+  logout: () => Promise<void>
 } | null>(null)

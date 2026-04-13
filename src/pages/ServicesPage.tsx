@@ -35,7 +35,7 @@ export function ServicesPage() {
     <div className="page services-page">
       <div className="services-page__header">
         <h1>অন্তর্ভুক্ত সেবাসমূহ</h1>
-        <p>এই সুবিধাগুলো আপনার কমিউনিটি হেলথ কার্ড সদস্যপদের সঙ্গে যুক্ত।</p>
+        <p>এই সুবিধাগুলো আপনার আমির হামজা ফাউন্ডেশন হেলথ কার্ড সদস্যপদের সঙ্গে যুক্ত।</p>
       </div>
       <ul className="service-list">
         {CARD_SERVICES.map((s) => (

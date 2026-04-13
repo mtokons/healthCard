@@ -22,7 +22,7 @@ export function VirtualCard({ member }: Props) {
       <div className="virtual-card__inner">
         <header className="virtual-card__header">
           <div>
-            <p className="virtual-card__brand">কমিউনিটি হেলথ কার্ড</p>
+            <p className="virtual-card__brand">আমির হামজা ফাউন্ডেশন হেলথ কার্ড</p>
             <p className="virtual-card__subtitle">সদস্য সুবিধা কর্মসূচি</p>
           </div>
           <div className="virtual-card__logo" aria-hidden>

@@ -8,10 +8,10 @@ export function Home() {
     <div className="page home">
       <section className="hero">
         <div className="hero__content">
-          <p className="eyebrow">কমিউনিটি কল্যাণ কর্মসূচি</p>
+          <p className="eyebrow">আমির হামজা ফাউন্ডেশন কল্যাণ কর্মসূচি</p>
           <h1 className="hero__title">একটি ডিজিটাল কার্ডে আপনার স্বাস্থ্যসুবিধা</h1>
           <p className="hero__lead">
-            বিনামূল্যে ভার্চুয়াল কমিউনিটি হেলথ কার্ডের জন্য নিবন্ধন করুন। প্রতিরোধমূলক সেবা, ছাড় ও সহায়তার সম্পদ—সব
+            বিনামূল্যে ভার্চুয়াল আমির হামজা ফাউন্ডেশন হেলথ কার্ডের জন্য নিবন্ধন করুন। প্রতিরোধমূলক সেবা, ছাড় ও সহায়তার সম্পদ—সব
             এক জায়গায়।
           </p>
           <div className="hero__actions">

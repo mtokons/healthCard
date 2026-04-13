@@ -10,7 +10,7 @@ export function Layout() {
         <div className="header__inner">
           <Link to="/" className="header__logo">
             <span className="header__mark" aria-hidden />
-            <span>কমিউনিটি হেলথ কার্ড</span>
+            <span>আমির হামজা ফাউন্ডেশন হেলথ কার্ড</span>
           </Link>
           <nav className="header__nav" aria-label="প্রধান নেভিগেশন">
             {member ? (

@@ -1,12 +1,7 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Member } from '../types'
-import {
-  getMemberById,
-  getSessionUserId,
-  loginMember,
-  registerMember,
-  setSessionUserId,
-} from '../lib/storage'
+import { generateCardNumber } from '../lib/storage'
+import { supabase } from '../lib/supabase'
 import { AuthContext } from './auth-context'
 
 type AuthState = {
@@ -14,81 +9,149 @@ type AuthState = {
   loading: boolean
 }
 
-const emptyState: AuthState = { member: null, loading: false }
-let cachedAuth: AuthState = emptyState
+const emptyState: AuthState = { member: null, loading: true }
 
-function computeAuthState(): AuthState {
-  const id = getSessionUserId()
-  if (!id) return emptyState
-  const member = getMemberById(id)
-  if (!member) return emptyState
-  return { member, loading: false }
-}
-
-function getSnapshot(): AuthState {
-  const next = computeAuthState()
-  if (
-    cachedAuth.member?.id === next.member?.id &&
-    cachedAuth.loading === next.loading
-  ) {
-    return cachedAuth
-  }
-  cachedAuth = next
-  return cachedAuth
-}
-
-const AUTH_EVENT = 'chc-auth'
-
-function subscribe(callback: () => void) {
-  const onAuth = () => callback()
-  window.addEventListener(AUTH_EVENT, onAuth)
-  window.addEventListener('storage', onAuth)
-  return () => {
-    window.removeEventListener(AUTH_EVENT, onAuth)
-    window.removeEventListener('storage', onAuth)
-  }
-}
-
-function useAuthState() {
-  return useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    () => emptyState
-  )
+function toBanglaError(message: string) {
+  const m = message.toLowerCase()
+  if (m.includes('invalid login credentials')) return 'ইমেইল বা পাসওয়ার্ড ভুল।'
+  if (m.includes('user already registered')) return 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট আছে।'
+  return 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।'
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { member, loading } = useAuthState()
+  const [{ member, loading }, setState] = useState<AuthState>(emptyState)
 
   useEffect(() => {
-    const id = getSessionUserId()
-    if (id && !getMemberById(id)) {
-      setSessionUserId(null)
-      window.dispatchEvent(new Event(AUTH_EVENT))
+    let cancelled = false
+
+    async function load() {
+      const { data } = await supabase.auth.getSession()
+      const user = data.session?.user ?? null
+      if (!user) {
+        if (!cancelled) setState({ member: null, loading: false })
+        return
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id,email,full_name,card_number,member_since')
+        .eq('id', user.id)
+        .single()
+
+      if (error || !profile) {
+        if (!cancelled) setState({ member: null, loading: false })
+        return
+      }
+
+      const nextMember: Member = {
+        id: profile.id,
+        email: profile.email,
+        fullName: profile.full_name,
+        cardNumber: profile.card_number,
+        memberSince: profile.member_since,
+      }
+
+      if (!cancelled) setState({ member: nextMember, loading: false })
+    }
+
+    load()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null
+      if (!user) {
+        setState({ member: null, loading: false })
+        return
+      }
+      void (async () => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id,email,full_name,card_number,member_since')
+          .eq('id', user.id)
+          .single()
+
+        if (!profile) {
+          setState({ member: null, loading: false })
+          return
+        }
+
+        setState({
+          member: {
+            id: profile.id,
+            email: profile.email,
+            fullName: profile.full_name,
+            cardNumber: profile.card_number,
+            memberSince: profile.member_since,
+          },
+          loading: false,
+        })
+      })()
+    })
+
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
     }
   }, [])
 
   const register = useCallback((fullName: string, email: string, password: string) => {
-    const result = registerMember(fullName, email, password)
-    if (result.ok) {
-      setSessionUserId(result.member.id)
-      window.dispatchEvent(new Event(AUTH_EVENT))
-    }
-    return result
+    return (async () => {
+      if (!fullName.trim() || !email.trim() || !password) {
+        return { ok: false as const, error: 'সব ঘর পূরণ করুন।' }
+      }
+
+      setState((s) => ({ ...s, loading: true }))
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      })
+
+      if (error || !data.user) {
+        setState((s) => ({ ...s, loading: false }))
+        return { ok: false as const, error: toBanglaError(error?.message ?? '') }
+      }
+
+      const cardNumber = generateCardNumber()
+
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email: email.trim().toLowerCase(),
+        full_name: fullName.trim(),
+        card_number: cardNumber,
+      })
+
+      if (profileError) {
+        setState((s) => ({ ...s, loading: false }))
+        return { ok: false as const, error: 'প্রোফাইল তৈরি করা যায়নি। আবার চেষ্টা করুন।' }
+      }
+
+      setState((s) => ({ ...s, loading: false }))
+      return { ok: true as const }
+    })()
   }, [])
 
   const login = useCallback((email: string, password: string) => {
-    const result = loginMember(email, password)
-    if (result.ok) {
-      setSessionUserId(result.member.id)
-      window.dispatchEvent(new Event(AUTH_EVENT))
-    }
-    return result
+    return (async () => {
+      if (!email.trim() || !password) return { ok: false as const, error: 'সব ঘর পূরণ করুন।' }
+      setState((s) => ({ ...s, loading: true }))
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (error) {
+        setState((s) => ({ ...s, loading: false }))
+        return { ok: false as const, error: toBanglaError(error.message) }
+      }
+      setState((s) => ({ ...s, loading: false }))
+      return { ok: true as const }
+    })()
   }, [])
 
   const logout = useCallback(() => {
-    setSessionUserId(null)
-    window.dispatchEvent(new Event(AUTH_EVENT))
+    return (async () => {
+      await supabase.auth.signOut()
+      setState({ member: null, loading: false })
+    })()
   }, [])
 
   const value = useMemo(

@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export function Register() {
-  const { register, member } = useAuth()
+  const { register, member, loading } = useAuth()
   const navigate = useNavigate()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -13,10 +13,10 @@ export function Register() {
 
   if (member) return <Navigate to="/card" replace />
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    const result = register(fullName, email, password)
+    const result = await register(fullName, email, password)
     if (result.ok) navigate('/card', { replace: true })
     else setError(result.error)
   }
@@ -66,7 +66,7 @@ export function Register() {
             />
           </label>
           <button type="submit" className="btn btn--primary btn--block">
-            নিবন্ধন করুন ও কার্ড পান
+            {loading ? 'অপেক্ষা করুন...' : 'নিবন্ধন করুন ও কার্ড পান'}
           </button>
         </form>
         <p className="auth-panel__footer">
